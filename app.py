@@ -5,7 +5,7 @@ from flask import Flask, request, jsonify
 MODEL_PATH = "netflix_type_rf_model.pkl"
 model = joblib.load(MODEL_PATH)
 
-app = Flask(__name__)
+predict = Flask(__name__)
 
 @app.route('/', methods=['GET'])
 def home():
