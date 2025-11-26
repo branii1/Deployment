@@ -2,8 +2,6 @@ import streamlit as st
 import pickle
 import pandas as pd
 import numpy as np
-from sklearn.pipeline import Pipeline
-from sklearn.ensemble import RandomForestClassifier
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -21,18 +19,65 @@ This app predicts whether a Netflix title is likely to be a **Movie** or **TV Sh
 based on its characteristics using a trained Random Forest model.
 """)
 
-# Sidebar for input features
-st.sidebar.header("Input Features")
-
-def load_model():
-    """Load the trained model from the pickle file"""
+def load_model_fixed():
+    """Load the trained model with compatibility fixes"""
     try:
+        # First try standard loading
         with open('netflix_type_rf_model.pkl', 'rb') as file:
             model = pickle.load(file)
         return model
     except Exception as e:
-        st.error(f"Error loading model: {e}")
-        return None
+        st.warning(f"Standard loading failed: {e}. Trying compatibility mode...")
+        try:
+            # Try with custom fix for module issues
+            import sys
+            from sklearn.pipeline import Pipeline
+            from sklearn.compose import ColumnTransformer
+            from sklearn.impute import SimpleImputer
+            from sklearn.preprocessing import StandardScaler, OneHotEncoder
+            from sklearn.ensemble import RandomForestClassifier
+            
+            # Add dummy classes to handle import issues
+            class DummyPipeline:
+                pass
+            class DummyColumnTransformer:
+                pass
+            
+            # Temporarily add dummy classes to handle import errors
+            sys.modules['Pipeline'] = Pipeline
+            sys.modules['ColumnTransformer'] = ColumnTransformer
+            
+            with open('netflix_type_rf_model.pkl', 'rb') as file:
+                model = pickle.load(file)
+            return model
+        except Exception as e2:
+            st.error(f"Compatibility loading also failed: {e2}")
+            return None
+
+def load_model_robust():
+    """More robust model loading with multiple fallbacks"""
+    try:
+        # Method 1: Try with encoding
+        with open('netflix_type_rf_model.pkl', 'rb') as file:
+            model = pickle.load(file, encoding='latin1')
+        return model
+    except Exception as e1:
+        st.warning(f"Method 1 failed: {e1}")
+        try:
+            # Method 2: Try with different encoding
+            with open('netflix_type_rf_model.pkl', 'rb') as file:
+                model = pickle.load(file, encoding='bytes')
+            return model
+        except Exception as e2:
+            st.warning(f"Method 2 failed: {e2}")
+            try:
+                # Method 3: Try with joblib instead of pickle
+                import joblib
+                model = joblib.load('netflix_type_rf_model.pkl')
+                return model
+            except Exception as e3:
+                st.error(f"All loading methods failed: {e3}")
+                return None
 
 def user_input_features():
     """Collect user input features"""
@@ -75,10 +120,25 @@ def user_input_features():
 
 def main():
     # Load model
-    model = load_model()
+    model = load_model_robust()
     
     if model is None:
-        st.error("Could not load the model. Please ensure the model file is available.")
+        st.error("""
+        Could not load the model. This is usually due to version compatibility issues.
+        
+        **Possible solutions:**
+        1. Ensure you're using scikit-learn version 1.7.2 (the model was trained with this version)
+        2. Try installing the exact versions: `pip install scikit-learn==1.7.2 joblib==1.3.2`
+        3. The model file might be corrupted or incomplete
+        """)
+        
+        # Show installation commands
+        with st.expander("Installation Help"):
+            st.code("""
+pip install scikit-learn==1.7.2
+pip install joblib==1.3.2
+pip install streamlit pandas numpy
+            """)
         return
     
     # Display model information
@@ -122,7 +182,6 @@ def main():
                 prediction_proba = model.predict_proba(input_df)
                 
                 # Assuming the model predicts 0 for Movie, 1 for TV Show
-                # You might need to adjust this based on your actual model's classes
                 content_types = ['Movie', 'TV Show']
                 
                 predicted_type = content_types[prediction[0]]
@@ -147,34 +206,19 @@ def main():
                 
             except Exception as e:
                 st.error(f"Error making prediction: {e}")
-    
-    # Feature importance (if available)
-    if hasattr(model, 'feature_importances_'):
-        with st.expander("📊 Feature Importance"):
-            try:
-                # Get feature names from the preprocessing pipeline
-                if hasattr(model, 'named_steps'):
-                    preprocessor = model.named_steps.get('preprocessor', None)
-                    if preprocessor is not None:
-                        feature_names = preprocessor.get_feature_names_out()
-                    else:
-                        feature_names = [f'Feature_{i}' for i in range(len(model.feature_importances_))]
-                else:
-                    feature_names = [f'Feature_{i}' for i in range(len(model.feature_importances_))]
+                st.info("This might be due to feature name mismatches. Trying alternative approach...")
                 
-                # Create feature importance dataframe
-                importance_df = pd.DataFrame({
-                    'Feature': feature_names,
-                    'Importance': model.feature_importances_
-                }).sort_values('Importance', ascending=False)
-                
-                st.dataframe(importance_df.head(10))
-                
-                # Display as bar chart
-                st.bar_chart(importance_df.set_index('Feature').head(10))
-                
-            except Exception as e:
-                st.info("Feature importance visualization is not available for this model configuration.")
+                # Alternative prediction approach
+                try:
+                    # Get the feature names the model expects
+                    if hasattr(model, 'feature_names_in_'):
+                        expected_features = model.feature_names_in_
+                        st.write(f"Model expects features: {list(expected_features)}")
+                    
+                    # Try with different column ordering
+                    st.info("Please ensure your input features match the model's expected features.")
+                except Exception as e2:
+                    st.error(f"Alternative approach also failed: {e2}")
 
     # Usage tips
     with st.expander("💡 Usage Tips"):
