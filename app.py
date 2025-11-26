@@ -43,30 +43,18 @@ def user_input_features():
                                          min_value=1, max_value=500, value=90)
     cast_count = st.sidebar.slider('Number of Cast Members', 1, 50, 5)
     
-    # Categorical features with EXACT options from the model's training data
-    # These are extracted from your actual model pickle file
+    # Categorical features with options from the model's training data
     rating_options = ['66 min', '74 min', '84 min', 'G', 'NC-17', 'NR', 'Not Specified', 
                      'PG', 'PG-13', 'R', 'TV-14', 'TV-G', 'TV-MA', 'TV-PG', 'TV-Y', 
                      'TV-Y7', 'TV-Y7-FV', 'UR']
     
-    country_options = [
-        'United States', 'India', 'United Kingdom', 'Canada', 'France', 'Japan', 
-        'South Korea', 'Spain', 'Mexico', 'Australia', 'Germany', 'Philippines',
-        'Brazil', 'Italy', 'Turkey', 'Thailand', 'Indonesia', 'South Africa',
-        'Egypt', 'Nigeria', 'China', 'Argentina', 'Colombia', 'Pakistan',
-        'Bangladesh', 'Russia', 'Malaysia', 'Saudi Arabia', 'United Arab Emirates',
-        'Poland', 'Netherlands', 'Sweden', 'Belgium', 'Denmark', 'Norway',
-        'Switzerland', 'Austria', 'Israel', 'Czech Republic', 'Finland',
-        'Portugal', 'Greece', 'Romania', 'Hungary', 'Ukraine', 'Ireland',
-        'New Zealand', 'Singapore', 'Hong Kong', 'Taiwan', 'Vietnam',
-        'Not Specified'
-    ]
+    country_options = ['United States', 'United Kingdom', 'India', 'Canada', 'France', 
+                      'Japan', 'South Korea', 'Spain', 'Germany', 'Australia', 'Mexico',
+                      'Brazil', 'Italy', 'China', 'Not Specified']
     
-    director_options = [
-        'Not Specified', 'Rajiv Chilaka', 'Marcus Raboy', 'Jay Karas', 
-        'Suhas Kadav', 'Jay Chapman', 'Cathy Garcia-Molina', 'Youssef Chahine',
-        'Martin Scorsese', 'Raúl Campos, Jan Suter', 'Other'
-    ]
+    director_options = ['Cathy Garcia-Molina', 'Jay Chapman', 'Jay Karas', 'Marcus Raboy', 
+                       'Martin Scorsese', 'Not Specified', 'Other', 'Rajiv Chilaka', 
+                       'Raúl Campos, Jan Suter', 'Suhas Kadav', 'Youssef Chahine']
     
     rating = st.sidebar.selectbox('Rating', rating_options, index=rating_options.index('TV-MA'))
     country = st.sidebar.selectbox('Country', country_options, index=country_options.index('United States'))
@@ -133,18 +121,19 @@ def main():
                 prediction = model.predict(input_df)
                 prediction_proba = model.predict_proba(input_df)
                 
+                # Assuming the model predicts 0 for Movie, 1 for TV Show
+                # You might need to adjust this based on your actual model's classes
+                content_types = ['Movie', 'TV Show']
+                
+                predicted_type = content_types[prediction[0]]
+                
                 # Display results
-                if prediction[0] == 1:
-                    predicted_type = "TV Show"
-                    st.success(f"**Predicted Content Type: 🎭 {predicted_type}**")
-                else:
-                    predicted_type = "Movie"
-                    st.success(f"**Predicted Content Type: 🎬 {predicted_type}**")
+                st.success(f"**Predicted Content Type: {predicted_type}**")
                 
                 # Show probability scores
                 st.subheader("Prediction Probabilities:")
                 prob_df = pd.DataFrame({
-                    'Content Type': ['Movie', 'TV Show'],
+                    'Content Type': content_types,
                     'Probability': prediction_proba[0]
                 })
                 st.dataframe(prob_df.style.format({'Probability': '{:.2%}'}))
@@ -153,7 +142,7 @@ def main():
                 st.subheader("Probability Distribution:")
                 chart_data = pd.DataFrame({
                     'Probability': prediction_proba[0]
-                }, index=['Movie', 'TV Show'])
+                }, index=content_types)
                 st.bar_chart(chart_data)
                 
             except Exception as e:
@@ -192,11 +181,11 @@ def main():
         st.markdown("""
         - **Duration**: For movies, enter the duration in minutes. For TV shows, enter the number of seasons.
         - **Cast Count**: The number of main cast members listed.
-        - **Rating**: Content rating/classification. Note that some ratings like '66 min', '74 min', '84 min' are actually duration-based categories in the original data.
+        - **Rating**: Content rating/classification.
         - **Country**: Primary country of production.
         - **Director**: Main director (select 'Not Specified' if unknown).
         
-        **Important Note**: The model uses the exact categories shown in the dropdowns. Using values outside these categories may cause prediction errors.
+        The model uses these features to determine whether the content is more likely to be a Movie or TV Show.
         """)
 
 if __name__ == '__main__':
